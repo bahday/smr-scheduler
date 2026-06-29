@@ -1,129 +1,97 @@
-# SMR Appointment Scheduler — The AA (Internal Tool)
+# SMR Appointment Scheduler
 
-An internal Service, Maintenance & Repair appointment scheduling system for a fictional AA branch network.
+Internal Service, Maintenance & Repair appointment scheduling system for a fictional roadside assistance company.
 
 ---
 
 ## How to Run
 
-### Option 1 — VS Code (recommended for local dev)
+**Quickest — VS Code (no database install needed):**
+Open the repo in VS Code, press **F5**, select **"Full Stack"**. Opens API on http://localhost:5050 and UI on http://localhost:5173 automatically. Uses SQLite, seeded on first run.
 
-**Prerequisites:** .NET 8 SDK, Node 20+, VS Code with the [C# Dev Kit](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csdevkit) extension
-
-1. Open the repo root in VS Code
-2. Press **F5** and select **"Full Stack"** from the Run & Debug dropdown
-
-This starts both simultaneously:
-- API on **http://localhost:5050** (debugger attached)
-- UI dev server on **http://localhost:5173** (browser opens automatically)
-
-The API uses SQLite for local dev — the database file (`smr-scheduler.db`) is created automatically on first run and seeded with sample data. No database install required.
-
-> **Swagger UI** is available at http://localhost:5050/swagger in Development mode.
-
----
-
-### Option 2 — Terminal
-
+**Terminal:**
 ```bash
-# Terminal 1 — API (SQLite, auto-migrates and seeds on first run)
-cd SmrScheduler.Api
-dotnet run
-
-# Terminal 2 — UI
-cd smr-scheduler-ui
-npm install   # first time only
-npm run dev
+cd SmrScheduler.Api && dotnet run        # API on :5050
+cd smr-scheduler-ui && npm i && npm run dev  # UI on :5173
 ```
 
----
-
-### Option 3 — Docker (SQL Server)
-
-**Prerequisites:** Docker Desktop running
-
+**Docker (SQL Server):**
 ```bash
 docker compose up --build
 ```
 
-This single command:
-1. Pulls SQL Server 2022 Express and waits for it to be healthy
-2. Builds and starts the API on **http://localhost:5050**
-3. Builds the React UI and serves it via nginx on **http://localhost:5173**
-4. Auto-migrates and seeds the database on first run
-
-```bash
-docker compose down      # stop, keep data
-docker compose down -v   # stop and wipe database
-```
-
 ---
 
-## Stack
+## Stack & Why
 
-| Layer | Choice | Rationale |
+| | Choice | Why |
 |---|---|---|
-| API | ASP.NET Core 8 Web API | Strong typing, EF Core integration, minimal boilerplate with primary constructors |
-| ORM | Entity Framework Core 8 | Code-first migrations, LINQ queries, no stored procs needed at this scale |
-| Database | SQLite (local dev) / SQL Server 2022 (Docker) | SQLite needs zero install for local dev; SQL Server in Docker matches production environments |
-| Frontend | React 18 + Vite + TypeScript | Fast dev server, type safety end-to-end, familiar ecosystem |
-| Styling | Tailwind CSS v3 | Utility-first, no component library dependency, keeps bundle small |
-| Routing | React Router v6 | Standard SPA routing, minimal API |
-| Container | docker compose | Single command to run the full stack; SQL Server health check gates API startup |
+| API | ASP.NET Core 8 | Strong typing, EF Core fits naturally, minimal setup |
+| DB | SQLite (dev) / SQL Server (Docker) | SQLite needs zero install locally; SQL Server in prod |
+| ORM | EF Core 8 code-first | Migrations, LINQ, no raw SQL needed at this scale |
+| Frontend | React + Vite + TypeScript | Fast dev loop, type-safe API calls end-to-end |
+| Styling | Tailwind CSS v3 | No component library needed, small bundle |
 
 ---
 
 ## What's Done
 
-- **Domain model** — 7 EF Core entities (Branch, Mechanic, ServiceType, Customer, AppointmentSlot, Appointment, WorkNote) with code-first migrations
-- **Auto-initialisation** — migrations applied + seed data inserted on first startup; idempotent (skips if already seeded)
-- **Seed data** — 2 branches, 4 mechanics, 4 service types, 7 weekdays of hourly slots (08:00–17:00), 3 sample appointments with work notes
-- **Reference data API** — `GET /api/branches`, `/api/servicetypes`, `/api/mechanics`
-- **Slots API** — `GET /api/slots` with branch/service type/date range filters; returns only available slots
-- **Appointments API** — `POST /api/appointments` (book), `GET /api/appointments/{id}`, `POST /api/appointments/{id}/notes`, `PUT /api/appointments/{id}/status`
-- **Mechanic API** — `GET /api/mechanics/{id}/appointments?date=today|tomorrow`
-- **Schedule API** — `GET /api/schedule/today` grouped by mechanic
-- **Double-booking guard** — atomic `ExecuteUpdate` (single `UPDATE WHERE IsAvailable=true`); returns 409 if already taken
-- **Reference numbers** — sequential per day, format `AA-YYYYMMDD-NNN`; uniqueness enforced by DB index
-- **Status transitions** — validated server-side: Scheduled→InProgress|NoShow, InProgress→Completed; terminal states reject further changes
-- **React SPA** — three pages: Today's Schedule (admin + mechanic views), Book Appointment (3-step flow), Appointment Detail
-- **"Acting as" context** — dropdown in nav switches between Admin and any Mechanic; persists across page navigation
-- **Dual database support** — SQLite for local dev, SQL Server for Docker/production; provider auto-detected from connection string
+- 7 EF Core entities, code-first migrations, auto-migrate + seed on startup
+- REST API: slots, appointments (book/detail/notes/status), mechanic view, today's schedule
+- Atomic double-booking guard (`UPDATE WHERE IsAvailable=true`, returns 409 on conflict)
+- Status transition validation server-side (Scheduled→InProgress→Completed / NoShow)
+- Reference numbers: `AA-YYYYMMDD-NNN`, unique DB index
+- React SPA: Today's Schedule (admin + mechanic views), Book Appointment (3-step), Appointment Detail
+- "Acting as" dropdown — switch between Admin and any Mechanic without auth
+- Swagger UI at `/swagger` in dev mode
+- Docker: multi-stage builds, SQL Server health check gates API startup
+- VS Code: F5 launches full stack
 
-## What's Not Done (Out of Scope)
+## What's Not Done / Would Do With More Time
 
-- Authentication / authorisation — the "Acting as" dropdown is a UI-only convenience
-- Email or SMS notifications on booking
-- Rescheduling or cancelling appointments
-- Recurring appointments
-- Payments
-- Mobile-optimised UI (responsive but not mobile-first)
-- Pagination on the schedule/mechanic views
+- **Auth** — "Acting as" is UI-only; would add JWT or cookie auth
+- **Slot regeneration** — slots seed once; would add a nightly background job to create next-day slots
+- **Rescheduling / cancellation** — out of scope, obvious next feature
+- **Pagination** — schedule and mechanic views load all records; needs paging at scale
+- **Tests** — no unit or integration tests; would add xUnit for controllers + React Testing Library for UI
+- **Notifications** — no email/SMS on booking
 
 ---
 
-## Known Rough Edges
+## Known Bugs / Rough Edges
 
-- **Slot generation is date-relative** — slots are seeded for "next 7 weekdays from today" at first run. If the database persists across days without reseeding, slots will appear in the past. Wipe and restart (`docker compose down -v && docker compose up --build`, or delete `smr-scheduler.db`) to regenerate.
-- **No ongoing slot generation** — the initialiser is intentionally idempotent; new slots aren't added on subsequent days. A production version would need a background job or admin endpoint.
-- **UTC everywhere** — all times stored and returned in UTC. The UI converts to `Europe/Dublin` locale for display, but there's no timezone selector.
-- **Reference number race** — the sequential counter uses `COUNT(*) + 1` inside a transaction. Under extreme concurrent load on the same day this could produce a collision; the unique DB index would catch it and surface a 500. A production fix would use a DB sequence or retry loop.
+- Slots seed relative to "today" — if the DB persists across days, past slots appear. Wipe and restart to regenerate.
+- Reference number uses `COUNT+1` in a transaction — race condition under extreme load; unique index catches it but surfaces a 500.
+- All times stored in UTC, displayed in `Europe/Dublin` — no timezone selector.
 
 ---
 
 ## AI Tools Used
 
-- **Claude (claude-sonnet-4-6 via Claude Code)** — generated the full solution: architecture planning, all C# entities/controllers/DbContext/seed data, React components/pages/API layer, Dockerfiles, VS Code config, and this README. Prompts were written by the developer; all output was reviewed before committing.
+Claude (claude-sonnet-4-6 via Claude Code) — used for the full build. See below.
 
 ---
 
-## Planning Notes
+## Planning
 
-The project was built in 6 phases following a written [`PLAN.md`](PLAN.md):
+Wrote a detailed [`PLAN.md`](PLAN.md) upfront covering all 6 phases, every task, and the full commit plan before writing any code. Claude was asked to produce the plan first and wait for approval before starting each phase.
 
-1. **Solution scaffold** — .sln, 3 C# projects, project references, port config
-2. **Domain & database** — entities, DbContext, EF migration, seed data initialiser
-3. **API layer** — 5 controllers, DTOs, double-booking guard, status transition validation
-4. **React frontend** — typed API layer, 3 pages, "Acting as" context, Tailwind styling
-5. **Containerisation** — multi-stage Dockerfiles, docker compose with health checks
-6. **Polish** — hardened double-booking guard (atomic `ExecuteUpdate`), SQLite local dev support, VS Code launch config, README
+---
+
+## Prompts Used
+
+The session followed a structured approach — one prompt per phase:
+
+1. *"Before writing any code, create a detailed implementation plan… output a markdown file called PLAN.md…"* — full phase/task breakdown with commit plan
+2. *"Start phase 1"* through *"Start phase 6"* — each phase was a single instruction; Claude worked through the task list autonomously
+3. Corrections made mid-session: switching to .NET 8 (template defaulted to 9), adding SQLite when LocalDB wasn't available, adding VS Code launch config
+
+---
+
+## What I Wrote Myself
+
+- The project brief / requirements (the spec fed to Claude)
+- [`PLAN.md`](PLAN.md) prompt — structured to force planning before coding
+- Phase-by-phase approval decisions (reviewing each phase before saying "start next phase")
+- Corrections when Claude went off-spec (e.g. prompted .NET 8 retargeting, SQLite fallback)
+- This section
