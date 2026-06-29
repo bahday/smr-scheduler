@@ -15,19 +15,27 @@ public class AppointmentsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<BookAppointmentResponse>> BookAppointment(
         [FromBody] BookAppointmentRequest request)
     {
-        // Pessimistic double-booking guard: lock and check in one transaction
+        // Pessimistic double-booking guard: atomic check-and-mark in one statement.
+        // ExecuteUpdate returns the number of rows affected; 0 means the slot was
+        // already taken (or doesn't exist) — no separate read needed.
         await using var transaction = await db.Database.BeginTransactionAsync();
+
+        var marked = await db.AppointmentSlots
+            .Where(s => s.Id == request.SlotId && s.IsAvailable)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsAvailable, false));
+
+        if (marked == 0)
+        {
+            var exists = await db.AppointmentSlots.AnyAsync(s => s.Id == request.SlotId);
+            return exists
+                ? Conflict(new { error = "This slot has already been booked." })
+                : NotFound(new { error = "Slot not found." });
+        }
 
         var slot = await db.AppointmentSlots
             .Include(s => s.Mechanic)
             .Include(s => s.Branch)
-            .FirstOrDefaultAsync(s => s.Id == request.SlotId);
-
-        if (slot is null)
-            return NotFound(new { error = "Slot not found." });
-
-        if (!slot.IsAvailable)
-            return Conflict(new { error = "This slot has already been booked." });
+            .FirstAsync(s => s.Id == request.SlotId);
 
         var serviceType = await db.ServiceTypes.FindAsync(request.ServiceTypeId);
         if (serviceType is null)
@@ -48,8 +56,6 @@ public class AppointmentsController(AppDbContext db) : ControllerBase
         var todayCount = await db.Appointments
             .CountAsync(a => a.CreatedUtc >= today && a.CreatedUtc < today.AddDays(1));
         var refNumber = $"AA-{dateStr}-{(todayCount + 1):D3}";
-
-        slot.IsAvailable = false;
 
         var appointment = new Appointment
         {
