@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+**/.git/
+smr-scheduler-ui/
+**/node_modules/
+**/*.user
+**/.vs/
