@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using SmrScheduler.Api.DTOs;
 using SmrScheduler.Core.Interfaces;
@@ -6,7 +7,7 @@ namespace SmrScheduler.Api.Controllers;
 
 [ApiController]
 [Route("api/mechanics")]
-public class MechanicsController(IMechanicService mechanicService) : ControllerBase
+public class MechanicsController(IMechanicService mechanicService, IMapper mapper) : ControllerBase
 {
     [HttpGet("{id:int}/appointments")]
     public async Task<ActionResult<IEnumerable<AppointmentSummaryDto>>> GetMechanicAppointments(
@@ -21,16 +22,6 @@ public class MechanicsController(IMechanicService mechanicService) : ControllerB
             : DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         var appointments = await mechanicService.GetAppointmentsAsync(id, targetDate);
-
-        return Ok(appointments.Select(a => new AppointmentSummaryDto(
-            a.Id,
-            a.ReferenceNumber,
-            a.Status.ToString(),
-            a.Customer.Name,
-            a.Customer.VehicleRegistration,
-            a.ServiceType.Name,
-            a.Slot.StartUtc,
-            a.Mechanic.Name,
-            a.Branch.Name)));
+        return Ok(mapper.Map<IEnumerable<AppointmentSummaryDto>>(appointments));
     }
 }

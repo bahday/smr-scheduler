@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SmrScheduler.Api.Mapping;
 using SmrScheduler.Api.Middleware;
 using SmrScheduler.Core.Interfaces;
 using SmrScheduler.Infrastructure.Data;
@@ -31,6 +32,8 @@ builder.Services.AddScoped<ISlotService, SlotService>();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<IMechanicService, MechanicService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
+
+builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();

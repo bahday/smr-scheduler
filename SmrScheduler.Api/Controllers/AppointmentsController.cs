@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using SmrScheduler.Api.DTOs;
 using SmrScheduler.Core.Enums;
@@ -7,7 +8,7 @@ namespace SmrScheduler.Api.Controllers;
 
 [ApiController]
 [Route("api/appointments")]
-public class AppointmentsController(IAppointmentService appointmentService) : ControllerBase
+public class AppointmentsController(IAppointmentService appointmentService, IMapper mapper) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<BookAppointmentResponse>> BookAppointment(
@@ -21,16 +22,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
             request.VehicleRegistration,
             request.Notes));
 
-        var response = new BookAppointmentResponse(
-            result.Appointment.Id,
-            result.Appointment.ReferenceNumber,
-            result.Customer.Name,
-            result.Customer.VehicleRegistration,
-            result.ServiceType.Name,
-            result.Slot.Mechanic.Name,
-            result.Slot.Branch.Name,
-            result.Slot.StartUtc);
-
+        var response = mapper.Map<BookAppointmentResponse>(result);
         return CreatedAtAction(nameof(GetAppointment), new { id = result.Appointment.Id }, response);
     }
 
@@ -40,19 +32,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
         var appt = await appointmentService.GetByIdAsync(id);
         if (appt is null) return NotFound();
 
-        return Ok(new AppointmentDetailDto(
-            appt.Id,
-            appt.ReferenceNumber,
-            appt.Status.ToString(),
-            appt.CreatedUtc,
-            new CustomerDto(appt.Customer.Id, appt.Customer.Name, appt.Customer.Phone, appt.Customer.VehicleRegistration),
-            new SlotDto(appt.Slot.Id, appt.Slot.MechanicId, appt.Mechanic.Name, appt.Slot.BranchId, appt.Branch.Name, appt.Slot.StartUtc, appt.Slot.EndUtc),
-            new ServiceTypeDto(appt.ServiceType.Id, appt.ServiceType.Name, appt.ServiceType.DurationMinutes),
-            new MechanicDto(appt.Mechanic.Id, appt.Mechanic.Name, appt.Mechanic.BranchId, appt.Mechanic.Branch.Name),
-            new BranchDto(appt.Branch.Id, appt.Branch.Name, appt.Branch.Address),
-            appt.WorkNotes
-                .OrderByDescending(n => n.CreatedUtc)
-                .Select(n => new WorkNoteDto(n.Id, n.Author.Name, n.Text, n.CreatedUtc))));
+        return Ok(mapper.Map<AppointmentDetailDto>(appt));
     }
 
     [HttpPost("{id:int}/notes")]
@@ -63,7 +43,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
 
         var note = await appointmentService.AddWorkNoteAsync(id, request.Text);
         return CreatedAtAction(nameof(GetAppointment), new { id },
-            new WorkNoteDto(note.Id, note.Author.Name, note.Text, note.CreatedUtc));
+            mapper.Map<WorkNoteDto>(note));
     }
 
     [HttpPut("{id:int}/status")]

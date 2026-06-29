@@ -50,3 +50,9 @@ public record AppointmentSummaryDto(
     DateTime StartUtc,
     string MechanicName,
     string BranchName);
+
+public record ScheduleGroupDto(
+    int MechanicId,
+    string MechanicName,
+    string BranchName,
+    IEnumerable<AppointmentSummaryDto> Appointments);
