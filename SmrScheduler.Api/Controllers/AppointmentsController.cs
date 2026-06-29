@@ -13,36 +13,25 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
     public async Task<ActionResult<BookAppointmentResponse>> BookAppointment(
         [FromBody] BookAppointmentRequest request)
     {
-        try
-        {
-            var result = await appointmentService.BookAsync(new BookAppointmentCommand(
-                request.SlotId,
-                request.ServiceTypeId,
-                request.CustomerName,
-                request.CustomerPhone,
-                request.VehicleRegistration,
-                request.Notes));
+        var result = await appointmentService.BookAsync(new BookAppointmentCommand(
+            request.SlotId,
+            request.ServiceTypeId,
+            request.CustomerName,
+            request.CustomerPhone,
+            request.VehicleRegistration,
+            request.Notes));
 
-            var response = new BookAppointmentResponse(
-                result.Appointment.Id,
-                result.Appointment.ReferenceNumber,
-                result.Customer.Name,
-                result.Customer.VehicleRegistration,
-                result.ServiceType.Name,
-                result.Slot.Mechanic.Name,
-                result.Slot.Branch.Name,
-                result.Slot.StartUtc);
+        var response = new BookAppointmentResponse(
+            result.Appointment.Id,
+            result.Appointment.ReferenceNumber,
+            result.Customer.Name,
+            result.Customer.VehicleRegistration,
+            result.ServiceType.Name,
+            result.Slot.Mechanic.Name,
+            result.Slot.Branch.Name,
+            result.Slot.StartUtc);
 
-            return CreatedAtAction(nameof(GetAppointment), new { id = result.Appointment.Id }, response);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex) when (ex.Message.StartsWith("CONFLICT"))
-        {
-            return Conflict(new { error = "This slot has already been booked." });
-        }
+        return CreatedAtAction(nameof(GetAppointment), new { id = result.Appointment.Id }, response);
     }
 
     [HttpGet("{id:int}")]
@@ -72,16 +61,9 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
         if (string.IsNullOrWhiteSpace(request.Text))
             return BadRequest(new { error = "Note text cannot be empty." });
 
-        try
-        {
-            var note = await appointmentService.AddWorkNoteAsync(id, request.Text);
-            return CreatedAtAction(nameof(GetAppointment), new { id },
-                new WorkNoteDto(note.Id, note.Author.Name, note.Text, note.CreatedUtc));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
+        var note = await appointmentService.AddWorkNoteAsync(id, request.Text);
+        return CreatedAtAction(nameof(GetAppointment), new { id },
+            new WorkNoteDto(note.Id, note.Author.Name, note.Text, note.CreatedUtc));
     }
 
     [HttpPut("{id:int}/status")]
@@ -90,18 +72,7 @@ public class AppointmentsController(IAppointmentService appointmentService) : Co
         if (!Enum.TryParse<AppointmentStatus>(request.Status, ignoreCase: true, out var newStatus))
             return BadRequest(new { error = $"Invalid status '{request.Status}'. Valid: Scheduled, InProgress, Completed, NoShow." });
 
-        try
-        {
-            await appointmentService.UpdateStatusAsync(id, newStatus);
-            return NoContent();
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        await appointmentService.UpdateStatusAsync(id, newStatus);
+        return NoContent();
     }
 }

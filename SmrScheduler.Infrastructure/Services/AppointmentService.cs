@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SmrScheduler.Core.Entities;
 using SmrScheduler.Core.Enums;
 using SmrScheduler.Core.Interfaces;
@@ -6,7 +7,7 @@ using SmrScheduler.Infrastructure.Data;
 
 namespace SmrScheduler.Infrastructure.Services;
 
-public class AppointmentService(AppDbContext db) : IAppointmentService
+public class AppointmentService(AppDbContext db, ILogger<AppointmentService> logger) : IAppointmentService
 {
     private static readonly Dictionary<AppointmentStatus, AppointmentStatus[]> ValidTransitions = new()
     {
@@ -18,6 +19,8 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
 
     public async Task<BookingResult> BookAsync(BookAppointmentCommand command)
     {
+        logger.LogInformation("Booking appointment for slot {SlotId}", command.SlotId);
+
         await using var transaction = await db.Database.BeginTransactionAsync();
 
         var marked = await db.AppointmentSlots
@@ -27,9 +30,13 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
         if (marked == 0)
         {
             var exists = await db.AppointmentSlots.AnyAsync(s => s.Id == command.SlotId);
-            throw exists
-                ? new InvalidOperationException("CONFLICT: This slot has already been booked.")
-                : new KeyNotFoundException("Slot not found.");
+            if (!exists)
+            {
+                logger.LogWarning("Slot {SlotId} not found", command.SlotId);
+                throw new KeyNotFoundException($"Slot {command.SlotId} not found.");
+            }
+            logger.LogWarning("Slot {SlotId} already booked", command.SlotId);
+            throw new InvalidOperationException("CONFLICT: This slot has already been booked.");
         }
 
         var slot = await db.AppointmentSlots
@@ -38,7 +45,7 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
             .FirstAsync(s => s.Id == command.SlotId);
 
         var serviceType = await db.ServiceTypes.FindAsync(command.ServiceTypeId)
-            ?? throw new KeyNotFoundException("Service type not found.");
+            ?? throw new KeyNotFoundException($"Service type {command.ServiceTypeId} not found.");
 
         var customer = new Customer
         {
@@ -82,6 +89,7 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
 
         await transaction.CommitAsync();
 
+        logger.LogInformation("Appointment {RefNumber} created for slot {SlotId}", refNumber, command.SlotId);
         return new BookingResult(appointment, slot, customer, serviceType);
     }
 
@@ -99,7 +107,7 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
     public async Task<WorkNote> AddWorkNoteAsync(int appointmentId, string text)
     {
         var appointment = await db.Appointments.FindAsync(appointmentId)
-            ?? throw new KeyNotFoundException("Appointment not found.");
+            ?? throw new KeyNotFoundException($"Appointment {appointmentId} not found.");
 
         var note = new WorkNote
         {
@@ -112,19 +120,25 @@ public class AppointmentService(AppDbContext db) : IAppointmentService
         await db.SaveChangesAsync();
 
         await db.Entry(note).Reference(n => n.Author).LoadAsync();
+
+        logger.LogInformation("Work note added to appointment {AppointmentId}", appointmentId);
         return note;
     }
 
     public async Task UpdateStatusAsync(int appointmentId, AppointmentStatus newStatus)
     {
         var appointment = await db.Appointments.FindAsync(appointmentId)
-            ?? throw new KeyNotFoundException("Appointment not found.");
+            ?? throw new KeyNotFoundException($"Appointment {appointmentId} not found.");
 
         if (!ValidTransitions[appointment.Status].Contains(newStatus))
             throw new InvalidOperationException(
                 $"Cannot transition from {appointment.Status} to {newStatus}.");
 
+        var previous = appointment.Status;
         appointment.Status = newStatus;
         await db.SaveChangesAsync();
+
+        logger.LogInformation("Appointment {AppointmentId} status changed from {Previous} to {New}",
+            appointmentId, previous, newStatus);
     }
 }

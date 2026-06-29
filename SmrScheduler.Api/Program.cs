@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SmrScheduler.Api.Middleware;
 using SmrScheduler.Core.Interfaces;
 using SmrScheduler.Infrastructure.Data;
 using SmrScheduler.Infrastructure.Services;
@@ -31,6 +32,9 @@ builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<IMechanicService, MechanicService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -50,6 +54,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseCors();
 app.MapControllers();
 
