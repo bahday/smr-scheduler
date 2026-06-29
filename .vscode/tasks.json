@@ -2,14 +2,15 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-api",
+      "label": "publish-api",
       "command": "dotnet",
       "type": "process",
       "args": [
-        "build",
+        "publish",
         "${workspaceFolder}/SmrScheduler.Api/SmrScheduler.Api.csproj",
-        "--configuration",
-        "Debug"
+        "--configuration", "Debug",
+        "--output", "C:\\smr-build",
+        "--no-self-contained"
       ],
       "problemMatcher": "$msCompile"
     }
