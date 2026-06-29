@@ -1,17 +1,18 @@
+import { CalendarDays, Car, Check, ChevronLeft, Clock, MapPin, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { BookAppointmentResponse, Branch, ServiceType, Slot } from '../types';
 
 type Step = 1 | 2 | 3 | 'confirmed';
 
-function groupSlotsByDay(slots: Slot[]): Record<string, Slot[]> {
-  return slots.reduce<Record<string, Slot[]>>((acc, slot) => {
-    const day = new Date(slot.startUtc).toLocaleDateString('en-IE', {
-      timeZone: 'Europe/Dublin',
-    });
-    (acc[day] ??= []).push(slot);
-    return acc;
-  }, {});
+function groupSlotsByDay(slots: Slot[]): [string, Slot[]][] {
+  const map = new Map<string, Slot[]>();
+  for (const slot of slots) {
+    const key = new Date(slot.startUtc).toISOString().slice(0, 10);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(slot);
+  }
+  return Array.from(map.entries());
 }
 
 function formatTime(utc: string) {
@@ -20,17 +21,18 @@ function formatTime(utc: string) {
   });
 }
 
-function formatDayHeader(dateStr: string) {
-  const [day, month, year] = dateStr.split('/').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-IE', {
-    weekday: 'short', day: 'numeric', month: 'short',
-  });
+function formatDayHeader(isoDate: string) {
+  const d = new Date(isoDate + 'T12:00:00Z');
+  const isToday = new Date().toISOString().slice(0, 10) === isoDate;
+  const isTomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10) === isoDate;
+  const label = d.toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
+  return isToday ? `Today — ${label}` : isTomorrow ? `Tomorrow — ${label}` : label;
 }
+
+const STEPS = ['Service', 'Slot', 'Details'] as const;
 
 export function BookPage() {
   const [step, setStep] = useState<Step>(1);
-
-  // Step 1 state
   const [branches, setBranches] = useState<Branch[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | ''>('');
@@ -38,19 +40,13 @@ export function BookPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState('');
-
-  // Step 2 state
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-
-  // Step 3 state
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [vehicleReg, setVehicleReg] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  // Confirmation state
   const [confirmation, setConfirmation] = useState<BookAppointmentResponse | null>(null);
 
   useEffect(() => {
@@ -59,10 +55,9 @@ export function BookPage() {
       .catch(console.error);
   }, []);
 
-  function handleStep1Submit() {
+  function handleFindSlots() {
     if (!selectedBranchId || !selectedServiceTypeId) return;
-    setSlotsLoading(true);
-    setSlotsError('');
+    setSlotsLoading(true); setSlotsError('');
     api.getSlots({ branchId: selectedBranchId as number, serviceTypeId: selectedServiceTypeId as number })
       .then(s => { setSlots(s); setStep(2); })
       .catch(e => setSlotsError(e.message))
@@ -71,14 +66,12 @@ export function BookPage() {
 
   async function handleBooking() {
     if (!selectedSlot || !customerName || !customerPhone || !vehicleReg) return;
-    setSubmitting(true);
-    setSubmitError('');
+    setSubmitting(true); setSubmitError('');
     try {
       const result = await api.bookAppointment({
         slotId: selectedSlot.id,
         serviceTypeId: selectedServiceTypeId as number,
-        customerName,
-        customerPhone,
+        customerName, customerPhone,
         vehicleRegistration: vehicleReg,
         notes: notes || undefined,
       });
@@ -92,56 +85,44 @@ export function BookPage() {
   }
 
   function reset() {
-    setStep(1);
-    setSelectedBranchId('');
-    setSelectedServiceTypeId('');
-    setSlots([]);
-    setSelectedSlot(null);
-    setCustomerName('');
-    setCustomerPhone('');
-    setVehicleReg('');
-    setNotes('');
-    setConfirmation(null);
+    setStep(1); setSelectedBranchId(''); setSelectedServiceTypeId('');
+    setSlots([]); setSelectedSlot(null); setCustomerName('');
+    setCustomerPhone(''); setVehicleReg(''); setNotes(''); setConfirmation(null);
   }
 
+  // ── Confirmation ──────────────────────────────────────────────────────────
   if (step === 'confirmed' && confirmation) {
     return (
-      <div className="max-w-lg mx-auto mt-8">
-        <div className="bg-white rounded-xl border shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Booking Confirmed</h2>
-              <p className="text-sm text-gray-500">Your appointment has been booked.</p>
-            </div>
+      <div className="max-w-lg mx-auto">
+        <div className="card p-8">
+          <div className="w-12 h-12 bg-green-50 border border-green-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check size={22} className="text-green-600" strokeWidth={2.5} />
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-xs text-yellow-700 font-medium uppercase tracking-wide mb-1">Reference Number</p>
-            <p className="text-2xl font-mono font-bold text-yellow-800">{confirmation.referenceNumber}</p>
+          <h2 className="text-xl font-bold text-aa-dark text-center mb-1">Booking Confirmed</h2>
+          <p className="text-sm text-aa-gray-mid text-center mb-6">Reference saved to the system.</p>
+
+          <div className="bg-aa-yellow/10 border border-aa-yellow rounded-card p-4 mb-6 text-center">
+            <p className="text-xs text-aa-gray font-medium uppercase tracking-wider mb-1">Reference Number</p>
+            <p className="text-3xl font-mono font-bold text-aa-dark">{confirmation.referenceNumber}</p>
           </div>
-          <dl className="space-y-2 text-sm">
+
+          <dl className="space-y-3 text-sm">
             {[
-              ['Customer', confirmation.customerName],
-              ['Vehicle', confirmation.vehicleRegistration],
-              ['Service', confirmation.serviceType],
-              ['Mechanic', confirmation.mechanicName],
-              ['Branch', confirmation.branchName],
-              ['Time', new Date(confirmation.startUtc).toLocaleString('en-IE', { timeZone: 'Europe/Dublin', dateStyle: 'medium', timeStyle: 'short' })],
-            ].map(([label, value]) => (
-              <div key={label} className="flex gap-2">
-                <dt className="w-20 text-gray-500 shrink-0">{label}</dt>
-                <dd className="font-medium text-gray-800">{value}</dd>
+              [<Car size={14} strokeWidth={1.75} />, 'Vehicle',    confirmation.vehicleRegistration],
+              [<Wrench size={14} strokeWidth={1.75} />, 'Service', confirmation.serviceType],
+              [<Clock size={14} strokeWidth={1.75} />, 'Time',
+                new Date(confirmation.startUtc).toLocaleString('en-IE', { timeZone: 'Europe/Dublin', dateStyle: 'medium', timeStyle: 'short' })],
+              [<MapPin size={14} strokeWidth={1.75} />, 'Branch',  confirmation.branchName],
+            ].map(([icon, label, value]) => (
+              <div key={label as string} className="flex items-center gap-3 py-2.5 border-b border-aa-border last:border-b-0">
+                <span className="text-aa-gray-mid">{icon}</span>
+                <span className="text-aa-gray-mid w-16 shrink-0">{label}</span>
+                <span className="font-medium text-aa-dark">{value as string}</span>
               </div>
             ))}
           </dl>
-          <button
-            onClick={reset}
-            className="mt-6 w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
-          >
+
+          <button onClick={reset} className="btn-primary w-full mt-6">
             Book Another Appointment
           </button>
         </div>
@@ -150,95 +131,122 @@ export function BookPage() {
   }
 
   const slotsByDay = groupSlotsByDay(slots);
+  const selectedService = serviceTypes.find(s => s.id === selectedServiceTypeId);
+  const selectedBranch = branches.find(b => b.id === selectedBranchId);
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Book an Appointment</h1>
+      <h1 className="page-title mb-6">Book an Appointment</h1>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 mb-8">
-        {([1, 2, 3] as const).map(n => (
-          <div key={n} className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold ${
-              (step as number) >= n ? 'bg-yellow-400 text-gray-900' : 'bg-gray-200 text-gray-500'
-            }`}>
-              {n}
-            </div>
-            <span className={`text-sm ${(step as number) >= n ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
-              {n === 1 ? 'Select service' : n === 2 ? 'Pick a slot' : 'Your details'}
-            </span>
-            {n < 3 && <div className="w-8 h-px bg-gray-300 mx-1" />}
-          </div>
-        ))}
+      <div className="card p-4 mb-6">
+        <div className="flex items-center">
+          {STEPS.map((label, i) => {
+            const n = (i + 1) as 1 | 2 | 3;
+            const done = (step as number) > n;
+            const active = step === n;
+            return (
+              <div key={label} className="flex items-center flex-1">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-all duration-200 ${
+                    done    ? 'bg-aa-dark text-white'
+                    : active ? 'bg-aa-yellow text-aa-dark'
+                    :          'bg-aa-border text-aa-gray-mid'
+                  }`}>
+                    {done ? <Check size={13} strokeWidth={2.5} /> : n}
+                  </div>
+                  <span className={`text-sm hidden sm:block truncate ${active ? 'font-semibold text-aa-dark' : 'text-aa-gray-mid'}`}>
+                    {label}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div className={`flex-1 h-px mx-3 transition-colors duration-200 ${(step as number) > n ? 'bg-aa-dark' : 'bg-aa-border'}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Step 1 */}
+      {/* ── Step 1 ── */}
       {step === 1 && (
-        <div className="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+        <div className="card p-6 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-            <select
-              value={selectedBranchId}
-              onChange={e => setSelectedBranchId(Number(e.target.value))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            >
+            <label className="form-label">
+              <MapPin size={14} className="inline mr-1.5 text-aa-gray-mid" strokeWidth={1.75} />
+              Branch
+            </label>
+            <select value={selectedBranchId} onChange={e => setSelectedBranchId(Number(e.target.value))} className="form-select">
               <option value="">Select a branch…</option>
               {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
-            <select
-              value={selectedServiceTypeId}
-              onChange={e => setSelectedServiceTypeId(Number(e.target.value))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            >
+            <label className="form-label">
+              <Wrench size={14} className="inline mr-1.5 text-aa-gray-mid" strokeWidth={1.75} />
+              Service Type
+            </label>
+            <select value={selectedServiceTypeId} onChange={e => setSelectedServiceTypeId(Number(e.target.value))} className="form-select">
               <option value="">Select a service…</option>
               {serviceTypes.map(s => (
                 <option key={s.id} value={s.id}>{s.name} ({s.durationMinutes} min)</option>
               ))}
             </select>
           </div>
-          {slotsError && <p className="text-red-600 text-sm">{slotsError}</p>}
-          <button
-            onClick={handleStep1Submit}
-            disabled={!selectedBranchId || !selectedServiceTypeId || slotsLoading}
-            className="w-full bg-yellow-400 text-gray-900 font-semibold py-2 rounded-lg text-sm hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {slotsLoading ? 'Loading slots…' : 'Find Available Slots →'}
+          {slotsError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-btn px-3 py-2">{slotsError}</p>}
+          <button onClick={handleFindSlots} disabled={!selectedBranchId || !selectedServiceTypeId || slotsLoading} className="btn-primary w-full">
+            {slotsLoading ? 'Loading slots…' : 'Find Available Slots'}
           </button>
         </div>
       )}
 
-      {/* Step 2 */}
+      {/* ── Step 2 ── */}
       {step === 2 && (
-        <div className="bg-white rounded-xl border shadow-sm p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-semibold text-gray-800">Available Slots</h2>
-            <button onClick={() => setStep(1)} className="text-sm text-gray-500 hover:text-gray-700">← Back</button>
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="section-title">Available Slots</h2>
+            <button onClick={() => setStep(1)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
+              <ChevronLeft size={14} strokeWidth={2} /> Back
+            </button>
           </div>
+
+          {/* Context pill */}
+          <div className="flex flex-wrap gap-2 mb-5">
+            {selectedBranch && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-aa-gray-soft border border-aa-border rounded-full px-3 py-1 text-aa-gray">
+                <MapPin size={12} strokeWidth={1.75} />{selectedBranch.name}
+              </span>
+            )}
+            {selectedService && (
+              <span className="inline-flex items-center gap-1.5 text-xs bg-aa-gray-soft border border-aa-border rounded-full px-3 py-1 text-aa-gray">
+                <Wrench size={12} strokeWidth={1.75} />{selectedService.name} · {selectedService.durationMinutes} min
+              </span>
+            )}
+          </div>
+
           {slots.length === 0 ? (
-            <p className="text-gray-500 text-sm">No available slots found. Try different filters.</p>
+            <p className="text-sm text-aa-gray-mid text-center py-8">No available slots. Try different filters.</p>
           ) : (
             <div className="space-y-5">
-              {Object.entries(slotsByDay).map(([day, daySlots]) => (
-                <div key={day}>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    {formatDayHeader(day)}
-                  </p>
+              {slotsByDay.map(([isoDay, daySlots]) => (
+                <div key={isoDay}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <CalendarDays size={13} className="text-aa-gray-mid" strokeWidth={1.75} />
+                    <p className="text-xs font-semibold text-aa-gray uppercase tracking-wide">{formatDayHeader(isoDay)}</p>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {daySlots.map(slot => (
                       <button
                         key={slot.id}
                         onClick={() => setSelectedSlot(slot)}
-                        className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                        className={`px-3.5 py-2 rounded-btn text-sm font-medium border transition-all duration-150 ${
                           selectedSlot?.id === slot.id
-                            ? 'bg-yellow-400 border-yellow-400 text-gray-900 font-semibold'
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-yellow-300'
+                            ? 'bg-aa-yellow border-aa-yellow text-aa-dark shadow-sm'
+                            : 'bg-white border-aa-border text-aa-dark hover:border-aa-yellow hover:bg-aa-yellow-s'
                         }`}
                       >
                         {formatTime(slot.startUtc)}
-                        <span className="text-xs ml-1 opacity-70">{slot.mechanicName.split(' ')[0]}</span>
+                        <span className="text-xs ml-1.5 opacity-60">{slot.mechanicName.split(' ')[0]}</span>
                       </button>
                     ))}
                   </div>
@@ -246,66 +254,73 @@ export function BookPage() {
               ))}
             </div>
           )}
+
           {selectedSlot && (
-            <div className="mt-4 p-3 bg-yellow-50 rounded-lg text-sm">
-              <p className="font-medium text-yellow-900">Selected slot:</p>
-              <p className="text-yellow-800">
-                {new Date(selectedSlot.startUtc).toLocaleString('en-IE', {
-                  timeZone: 'Europe/Dublin', dateStyle: 'medium', timeStyle: 'short',
-                })} — {selectedSlot.mechanicName} @ {selectedSlot.branchName}
-              </p>
+            <div className="mt-5 p-3.5 bg-aa-yellow-s border border-aa-yellow rounded-card text-sm flex items-center gap-2">
+              <Clock size={14} className="text-aa-dark shrink-0" strokeWidth={1.75} />
+              <span className="font-medium text-aa-dark">
+                {new Date(selectedSlot.startUtc).toLocaleString('en-IE', { timeZone: 'Europe/Dublin', dateStyle: 'medium', timeStyle: 'short' })}
+                {' '}&mdash; {selectedSlot.mechanicName}
+              </span>
             </div>
           )}
-          <button
-            onClick={() => setStep(3)}
-            disabled={!selectedSlot}
-            className="mt-4 w-full bg-yellow-400 text-gray-900 font-semibold py-2 rounded-lg text-sm hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Continue →
+
+          <button onClick={() => setStep(3)} disabled={!selectedSlot} className="btn-primary w-full mt-5">
+            Continue to Details
           </button>
         </div>
       )}
 
-      {/* Step 3 */}
+      {/* ── Step 3 ── */}
       {step === 3 && (
-        <div className="bg-white rounded-xl border shadow-sm p-6 space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="font-semibold text-gray-800">Customer Details</h2>
-            <button onClick={() => setStep(2)} className="text-sm text-gray-500 hover:text-gray-700">← Back</button>
+        <div className="card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="section-title">Customer Details</h2>
+            <button onClick={() => setStep(2)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
+              <ChevronLeft size={14} strokeWidth={2} /> Back
+            </button>
           </div>
+
           {[
-            { label: 'Full Name', value: customerName, onChange: setCustomerName, placeholder: 'e.g. Aoife Murphy' },
-            { label: 'Phone Number', value: customerPhone, onChange: setCustomerPhone, placeholder: 'e.g. 087-123-4567' },
-            { label: 'Vehicle Registration', value: vehicleReg, onChange: setVehicleReg, placeholder: 'e.g. 241-D-12345' },
-          ].map(field => (
-            <div key={field.label}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
+            { label: 'Full Name', value: customerName, set: setCustomerName, placeholder: 'e.g. Aoife Murphy', icon: 'user' },
+            { label: 'Phone Number', value: customerPhone, set: setCustomerPhone, placeholder: 'e.g. 087-123-4567', icon: 'phone' },
+            { label: 'Vehicle Registration', value: vehicleReg, set: setVehicleReg, placeholder: 'e.g. 241-D-12345', icon: 'car' },
+          ].map(f => (
+            <div key={f.label}>
+              <label className="form-label">{f.label}</label>
               <input
                 type="text"
-                value={field.value}
-                onChange={e => field.onChange(e.target.value)}
-                placeholder={field.placeholder}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                value={f.value}
+                onChange={e => f.set(e.target.value)}
+                placeholder={f.placeholder}
+                className="form-input"
               />
             </div>
           ))}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400">(optional)</span></label>
+            <label className="form-label">
+              Notes <span className="text-aa-gray-mid font-normal">(optional)</span>
+            </label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={3}
               placeholder="Any additional information for the mechanic…"
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              className="form-input resize-none"
             />
           </div>
-          {submitError && <p className="text-red-600 text-sm">{submitError}</p>}
+
+          {submitError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-btn px-3 py-2">{submitError}</p>
+          )}
+
           <button
             onClick={handleBooking}
             disabled={!customerName || !customerPhone || !vehicleReg || submitting}
-            className="w-full bg-yellow-400 text-gray-900 font-semibold py-2 rounded-lg text-sm hover:bg-yellow-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn-primary w-full"
           >
-            {submitting ? 'Booking…' : 'Confirm Booking'}
+            {submitting ? 'Confirming…' : 'Confirm Booking'}
           </button>
         </div>
       )}
