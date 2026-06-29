@@ -9,7 +9,7 @@ public class MappingProfile : Profile
 {
     public MappingProfile()
     {
-        // ── Simple entities — convention handles identical property names ──
+        // ── Simple entities — property names match DTO constructor params ──
 
         CreateMap<Branch, BranchDto>();
 
@@ -17,56 +17,67 @@ public class MappingProfile : Profile
 
         CreateMap<Customer, CustomerDto>();
 
-        // ── Entities with navigations that differ from convention ──
+        // ── Entities with navigations ──
 
         CreateMap<Mechanic, MechanicDto>()
-            .ForCtorParam("branchName", o => o.MapFrom(s => s.Branch.Name));
+            .ConstructUsing((s, _) => new MechanicDto(s.Id, s.Name, s.BranchId, s.Branch.Name));
 
         CreateMap<AppointmentSlot, SlotDto>()
-            .ForCtorParam("mechanicName", o => o.MapFrom(s => s.Mechanic.Name))
-            .ForCtorParam("branchName",   o => o.MapFrom(s => s.Branch.Name));
+            .ConstructUsing((s, _) => new SlotDto(s.Id, s.MechanicId, s.Mechanic.Name, s.BranchId, s.Branch.Name, s.StartUtc, s.EndUtc));
 
         CreateMap<WorkNote, WorkNoteDto>()
-            .ForCtorParam("authorName", o => o.MapFrom(s => s.Author.Name));
+            .ConstructUsing((s, _) => new WorkNoteDto(s.Id, s.Author.Name, s.Text, s.CreatedUtc));
 
         // ── Appointment → flattened summary ──
 
         CreateMap<Appointment, AppointmentSummaryDto>()
-            .ForCtorParam("status",              o => o.MapFrom(s => s.Status.ToString()))
-            .ForCtorParam("customerName",        o => o.MapFrom(s => s.Customer.Name))
-            .ForCtorParam("vehicleRegistration", o => o.MapFrom(s => s.Customer.VehicleRegistration))
-            .ForCtorParam("serviceType",         o => o.MapFrom(s => s.ServiceType.Name))
-            .ForCtorParam("startUtc",            o => o.MapFrom(s => s.Slot.StartUtc))
-            .ForCtorParam("mechanicName",        o => o.MapFrom(s => s.Mechanic.Name))
-            .ForCtorParam("branchName",          o => o.MapFrom(s => s.Branch.Name));
+            .ConstructUsing((s, _) => new AppointmentSummaryDto(
+                s.Id,
+                s.ReferenceNumber,
+                s.Status.ToString(),
+                s.Customer.Name,
+                s.Customer.VehicleRegistration,
+                s.ServiceType.Name,
+                s.Slot.StartUtc,
+                s.Mechanic.Name,
+                s.Branch.Name));
 
         // ── Appointment → full detail (nested DTOs resolved via maps above) ──
 
         CreateMap<Appointment, AppointmentDetailDto>()
-            .ForCtorParam("status",    o => o.MapFrom(s => s.Status.ToString()))
-            .ForCtorParam("customer",  o => o.MapFrom(s => s.Customer))
-            .ForCtorParam("slot",      o => o.MapFrom(s => s.Slot))
-            .ForCtorParam("serviceType", o => o.MapFrom(s => s.ServiceType))
-            .ForCtorParam("mechanic",  o => o.MapFrom(s => s.Mechanic))
-            .ForCtorParam("branch",    o => o.MapFrom(s => s.Branch))
-            .ForCtorParam("workNotes", o => o.MapFrom(s =>
-                s.WorkNotes.OrderByDescending(n => n.CreatedUtc)));
+            .ConstructUsing((s, ctx) => new AppointmentDetailDto(
+                s.Id,
+                s.ReferenceNumber,
+                s.Status.ToString(),
+                s.CreatedUtc,
+                ctx.Mapper.Map<CustomerDto>(s.Customer),
+                ctx.Mapper.Map<SlotDto>(s.Slot),
+                ctx.Mapper.Map<ServiceTypeDto>(s.ServiceType),
+                ctx.Mapper.Map<MechanicDto>(s.Mechanic),
+                ctx.Mapper.Map<BranchDto>(s.Branch),
+                ctx.Mapper.Map<IEnumerable<WorkNoteDto>>(
+                    s.WorkNotes.OrderByDescending(n => n.CreatedUtc))));
 
         // ── MechanicSchedule (service grouping) → schedule group response ──
 
         CreateMap<MechanicSchedule, ScheduleGroupDto>()
-            .ForCtorParam("appointments", o => o.MapFrom(s => s.Appointments));
+            .ConstructUsing((s, ctx) => new ScheduleGroupDto(
+                s.MechanicId,
+                s.MechanicName,
+                s.BranchName,
+                ctx.Mapper.Map<IEnumerable<AppointmentSummaryDto>>(s.Appointments)));
 
         // ── BookingResult → booking confirmation response ──
 
         CreateMap<BookingResult, BookAppointmentResponse>()
-            .ForCtorParam("id",                  o => o.MapFrom(s => s.Appointment.Id))
-            .ForCtorParam("referenceNumber",     o => o.MapFrom(s => s.Appointment.ReferenceNumber))
-            .ForCtorParam("customerName",        o => o.MapFrom(s => s.Customer.Name))
-            .ForCtorParam("vehicleRegistration", o => o.MapFrom(s => s.Customer.VehicleRegistration))
-            .ForCtorParam("serviceType",         o => o.MapFrom(s => s.ServiceType.Name))
-            .ForCtorParam("mechanicName",        o => o.MapFrom(s => s.Slot.Mechanic.Name))
-            .ForCtorParam("branchName",          o => o.MapFrom(s => s.Slot.Branch.Name))
-            .ForCtorParam("startUtc",            o => o.MapFrom(s => s.Slot.StartUtc));
+            .ConstructUsing((s, _) => new BookAppointmentResponse(
+                s.Appointment.Id,
+                s.Appointment.ReferenceNumber,
+                s.Customer.Name,
+                s.Customer.VehicleRegistration,
+                s.ServiceType.Name,
+                s.Slot.Mechanic.Name,
+                s.Slot.Branch.Name,
+                s.Slot.StartUtc));
     }
 }
