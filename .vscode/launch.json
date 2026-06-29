@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "API (dotnet run)",
+      "name": "API",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-api",
@@ -14,7 +14,26 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5050"
       }
+    },
+    {
+      "name": "UI",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/smr-scheduler-ui",
+      "serverReadyAction": {
+        "pattern": "Local:.*http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      }
     }
   ],
-  "compounds": []
+  "compounds": [
+    {
+      "name": "Full Stack",
+      "configurations": ["API", "UI"],
+      "stopAll": true
+    }
+  ]
 }
