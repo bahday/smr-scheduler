@@ -12,14 +12,7 @@ public class ScheduleController(IScheduleService scheduleService, IMapper mapper
     [HttpGet("today")]
     public async Task<IEnumerable<ScheduleGroupDto>> GetTodaySchedule()
     {
-        var appointments = await scheduleService.GetTodayAppointmentsAsync();
-
-        return appointments
-            .GroupBy(a => new { a.MechanicId, MechanicName = a.Mechanic.Name, BranchName = a.Branch.Name })
-            .Select(g => new ScheduleGroupDto(
-                g.Key.MechanicId,
-                g.Key.MechanicName,
-                g.Key.BranchName,
-                mapper.Map<IEnumerable<AppointmentSummaryDto>>(g)));
+        var groups = await scheduleService.GetTodayScheduleAsync();
+        return mapper.Map<IEnumerable<ScheduleGroupDto>>(groups);
     }
 }

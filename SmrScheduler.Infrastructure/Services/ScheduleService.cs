@@ -7,12 +7,12 @@ namespace SmrScheduler.Infrastructure.Services;
 
 public class ScheduleService(AppDbContext db) : IScheduleService
 {
-    public async Task<IEnumerable<Appointment>> GetTodayAppointmentsAsync()
+    public async Task<IEnumerable<MechanicSchedule>> GetTodayScheduleAsync()
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
-        return await db.Appointments
+        var appointments = await db.Appointments
             .AsNoTracking()
             .Include(a => a.Customer)
             .Include(a => a.Slot)
@@ -22,5 +22,9 @@ public class ScheduleService(AppDbContext db) : IScheduleService
             .Where(a => a.Slot.StartUtc >= today && a.Slot.StartUtc < tomorrow)
             .OrderBy(a => a.Slot.StartUtc)
             .ToListAsync();
+
+        return appointments
+            .GroupBy(a => new { a.MechanicId, MechanicName = a.Mechanic.Name, BranchName = a.Branch.Name })
+            .Select(g => new MechanicSchedule(g.Key.MechanicId, g.Key.MechanicName, g.Key.BranchName, g.ToList()));
     }
 }

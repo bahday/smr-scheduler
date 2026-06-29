@@ -52,6 +52,11 @@ public class MappingProfile : Profile
             .ForCtorParam("workNotes", o => o.MapFrom(s =>
                 s.WorkNotes.OrderByDescending(n => n.CreatedUtc)));
 
+        // ── MechanicSchedule (service grouping) → schedule group response ──
+
+        CreateMap<MechanicSchedule, ScheduleGroupDto>()
+            .ForCtorParam("appointments", o => o.MapFrom(s => s.Appointments));
+
         // ── BookingResult → booking confirmation response ──
 
         CreateMap<BookingResult, BookAppointmentResponse>()
