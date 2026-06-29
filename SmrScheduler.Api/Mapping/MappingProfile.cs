@@ -9,7 +9,7 @@ public class MappingProfile : Profile
 {
     public MappingProfile()
     {
-        // ── Simple entity → DTO (convention handles identical property names) ──
+        // ── Simple entities — convention handles identical property names ──
 
         CreateMap<Branch, BranchDto>();
 
@@ -17,46 +17,51 @@ public class MappingProfile : Profile
 
         CreateMap<Customer, CustomerDto>();
 
-        // ── Entities with navigations that don't match by convention ──
+        // ── Entities with navigations that differ from convention ──
 
         CreateMap<Mechanic, MechanicDto>()
-            .ForMember(d => d.BranchName, o => o.MapFrom(s => s.Branch.Name));
+            .ForCtorParam("branchName", o => o.MapFrom(s => s.Branch.Name));
 
         CreateMap<AppointmentSlot, SlotDto>()
-            .ForMember(d => d.MechanicName, o => o.MapFrom(s => s.Mechanic.Name))
-            .ForMember(d => d.BranchName,   o => o.MapFrom(s => s.Branch.Name));
+            .ForCtorParam("mechanicName", o => o.MapFrom(s => s.Mechanic.Name))
+            .ForCtorParam("branchName",   o => o.MapFrom(s => s.Branch.Name));
 
         CreateMap<WorkNote, WorkNoteDto>()
-            .ForMember(d => d.AuthorName, o => o.MapFrom(s => s.Author.Name));
+            .ForCtorParam("authorName", o => o.MapFrom(s => s.Author.Name));
 
         // ── Appointment → flattened summary ──
 
         CreateMap<Appointment, AppointmentSummaryDto>()
-            .ForMember(d => d.Status,              o => o.MapFrom(s => s.Status.ToString()))
-            .ForMember(d => d.CustomerName,        o => o.MapFrom(s => s.Customer.Name))
-            .ForMember(d => d.VehicleRegistration, o => o.MapFrom(s => s.Customer.VehicleRegistration))
-            .ForMember(d => d.ServiceType,         o => o.MapFrom(s => s.ServiceType.Name))
-            .ForMember(d => d.StartUtc,            o => o.MapFrom(s => s.Slot.StartUtc))
-            .ForMember(d => d.MechanicName,        o => o.MapFrom(s => s.Mechanic.Name))
-            .ForMember(d => d.BranchName,          o => o.MapFrom(s => s.Branch.Name));
+            .ForCtorParam("status",              o => o.MapFrom(s => s.Status.ToString()))
+            .ForCtorParam("customerName",        o => o.MapFrom(s => s.Customer.Name))
+            .ForCtorParam("vehicleRegistration", o => o.MapFrom(s => s.Customer.VehicleRegistration))
+            .ForCtorParam("serviceType",         o => o.MapFrom(s => s.ServiceType.Name))
+            .ForCtorParam("startUtc",            o => o.MapFrom(s => s.Slot.StartUtc))
+            .ForCtorParam("mechanicName",        o => o.MapFrom(s => s.Mechanic.Name))
+            .ForCtorParam("branchName",          o => o.MapFrom(s => s.Branch.Name));
 
-        // ── Appointment → full detail (nested DTOs resolved via configured maps above) ──
+        // ── Appointment → full detail (nested DTOs resolved via maps above) ──
 
         CreateMap<Appointment, AppointmentDetailDto>()
-            .ForMember(d => d.Status,    o => o.MapFrom(s => s.Status.ToString()))
-            .ForMember(d => d.WorkNotes, o => o.MapFrom(s =>
+            .ForCtorParam("status",    o => o.MapFrom(s => s.Status.ToString()))
+            .ForCtorParam("customer",  o => o.MapFrom(s => s.Customer))
+            .ForCtorParam("slot",      o => o.MapFrom(s => s.Slot))
+            .ForCtorParam("serviceType", o => o.MapFrom(s => s.ServiceType))
+            .ForCtorParam("mechanic",  o => o.MapFrom(s => s.Mechanic))
+            .ForCtorParam("branch",    o => o.MapFrom(s => s.Branch))
+            .ForCtorParam("workNotes", o => o.MapFrom(s =>
                 s.WorkNotes.OrderByDescending(n => n.CreatedUtc)));
 
-        // ── BookingResult (service return value) → booking confirmation response ──
+        // ── BookingResult → booking confirmation response ──
 
         CreateMap<BookingResult, BookAppointmentResponse>()
-            .ForMember(d => d.Id,                  o => o.MapFrom(s => s.Appointment.Id))
-            .ForMember(d => d.ReferenceNumber,     o => o.MapFrom(s => s.Appointment.ReferenceNumber))
-            .ForMember(d => d.CustomerName,        o => o.MapFrom(s => s.Customer.Name))
-            .ForMember(d => d.VehicleRegistration, o => o.MapFrom(s => s.Customer.VehicleRegistration))
-            .ForMember(d => d.ServiceType,         o => o.MapFrom(s => s.ServiceType.Name))
-            .ForMember(d => d.MechanicName,        o => o.MapFrom(s => s.Slot.Mechanic.Name))
-            .ForMember(d => d.BranchName,          o => o.MapFrom(s => s.Slot.Branch.Name))
-            .ForMember(d => d.StartUtc,            o => o.MapFrom(s => s.Slot.StartUtc));
+            .ForCtorParam("id",                  o => o.MapFrom(s => s.Appointment.Id))
+            .ForCtorParam("referenceNumber",     o => o.MapFrom(s => s.Appointment.ReferenceNumber))
+            .ForCtorParam("customerName",        o => o.MapFrom(s => s.Customer.Name))
+            .ForCtorParam("vehicleRegistration", o => o.MapFrom(s => s.Customer.VehicleRegistration))
+            .ForCtorParam("serviceType",         o => o.MapFrom(s => s.ServiceType.Name))
+            .ForCtorParam("mechanicName",        o => o.MapFrom(s => s.Slot.Mechanic.Name))
+            .ForCtorParam("branchName",          o => o.MapFrom(s => s.Slot.Branch.Name))
+            .ForCtorParam("startUtc",            o => o.MapFrom(s => s.Slot.StartUtc));
     }
 }
