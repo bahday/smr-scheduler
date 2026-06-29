@@ -13,7 +13,7 @@ An internal Service, Maintenance & Repair appointment scheduling system for a fi
 ### Start everything
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 This single command:
@@ -27,8 +27,8 @@ Open **http://localhost:5173** in your browser.
 ### Stop and clean up
 
 ```bash
-docker-compose down          # stop containers, keep DB volume
-docker-compose down -v       # stop containers and wipe DB volume
+docker compose down          # stop containers, keep DB volume
+docker compose down -v       # stop containers and wipe DB volume
 ```
 
 ### Run without Docker (local dev)
@@ -61,7 +61,7 @@ The UI reads `VITE_API_URL` from `.env` (defaults to `http://localhost:5050`).
 | Frontend | React 18 + Vite + TypeScript | Fast dev server, type safety end-to-end, familiar ecosystem |
 | Styling | Tailwind CSS v3 | Utility-first, no component library dependency, keeps bundle small |
 | Routing | React Router v6 | Standard SPA routing, minimal API |
-| Container | docker-compose | Single command to run the full stack; SQL Server health check gates API startup |
+| Container | docker compose | Single command to run the full stack; SQL Server health check gates API startup |
 
 ---
 
@@ -97,7 +97,7 @@ The UI reads `VITE_API_URL` from `.env` (defaults to `http://localhost:5050`).
 ## Known Rough Edges
 
 - **WDAC (Windows Application Control)** — if running locally on a locked-down Windows machine, the compiled DLLs may be blocked. Use Docker in that case.
-- **Slot generation is date-relative** — slots are generated for "next 7 weekdays from today" at seed time. If the app is left running across days without reseeding, old slots will show as past. Re-running `docker-compose down -v && docker-compose up --build` regenerates them.
+- **Slot generation is date-relative** — slots are generated for "next 7 weekdays from today" at seed time. If the app is left running across days without reseeding, old slots will show as past. Re-running `docker compose down -v && docker compose up --build` regenerates them.
 - **No slot re-seeding** — the initialiser is intentionally idempotent (skips if any branches exist), so new slots aren't added on subsequent days. A production version would need a background job or admin endpoint.
 - **UTC everywhere** — all times stored and returned in UTC. The UI converts to `Europe/Dublin` locale for display, but there's no timezone selector.
 - **Reference number race** — the sequential counter uses `COUNT(*) + 1` inside a transaction. Under extreme concurrent load on the same day this could produce duplicates; the unique DB index would catch it and surface a 500. A production fix would use a sequence or retry loop.
@@ -118,7 +118,7 @@ The project was built in 6 phases following a written `PLAN.md`:
 2. **Domain & database** — entities, DbContext, EF migration, seed data initialiser
 3. **API layer** — 5 controllers, DTOs, double-booking guard, status transition validation
 4. **React frontend** — typed API layer, 3 pages, "Acting as" context, Tailwind styling
-5. **Containerisation** — multi-stage Dockerfiles, docker-compose with health checks
+5. **Containerisation** — multi-stage Dockerfiles, docker compose with health checks
 6. **Polish** — hardened double-booking guard (atomic `ExecuteUpdate`), README
 
 Total git commits: 7 (feat) + 2 (chore).
