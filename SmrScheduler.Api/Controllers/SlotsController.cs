@@ -1,13 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SmrScheduler.Api.DTOs;
-using SmrScheduler.Infrastructure.Data;
+using SmrScheduler.Core.Interfaces;
 
 namespace SmrScheduler.Api.Controllers;
 
 [ApiController]
 [Route("api/slots")]
-public class SlotsController(AppDbContext db) : ControllerBase
+public class SlotsController(ISlotService slotService) : ControllerBase
 {
     [HttpGet]
     public async Task<IEnumerable<SlotDto>> GetAvailableSlots(
@@ -16,27 +15,8 @@ public class SlotsController(AppDbContext db) : ControllerBase
         [FromQuery] DateTime? fromDate,
         [FromQuery] DateTime? toDate)
     {
-        var from = (fromDate ?? DateTime.UtcNow.Date).ToUniversalTime();
-        var to = (toDate ?? DateTime.UtcNow.Date.AddDays(7)).ToUniversalTime().AddDays(1);
-
-        var query = db.AppointmentSlots
-            .Include(s => s.Mechanic)
-            .Include(s => s.Branch)
-            .Where(s => s.IsAvailable && s.StartUtc >= from && s.StartUtc < to);
-
-        if (branchId.HasValue)
-            query = query.Where(s => s.BranchId == branchId.Value);
-
-        return await query
-            .OrderBy(s => s.StartUtc)
-            .Select(s => new SlotDto(
-                s.Id,
-                s.MechanicId,
-                s.Mechanic.Name,
-                s.BranchId,
-                s.Branch.Name,
-                s.StartUtc,
-                s.EndUtc))
-            .ToListAsync();
+        var slots = await slotService.GetAvailableSlotsAsync(branchId, serviceTypeId, fromDate, toDate);
+        return slots.Select(s => new SlotDto(
+            s.Id, s.MechanicId, s.Mechanic.Name, s.BranchId, s.Branch.Name, s.StartUtc, s.EndUtc));
     }
 }

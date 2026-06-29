@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using SmrScheduler.Core.Interfaces;
 using SmrScheduler.Infrastructure.Data;
+using SmrScheduler.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +24,12 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
+
+builder.Services.AddScoped<IReferenceDataService, ReferenceDataService>();
+builder.Services.AddScoped<ISlotService, SlotService>();
+builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+builder.Services.AddScoped<IMechanicService, MechanicService>();
+builder.Services.AddScoped<IScheduleService, ScheduleService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

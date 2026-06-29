@@ -1,29 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SmrScheduler.Api.DTOs;
-using SmrScheduler.Infrastructure.Data;
+using SmrScheduler.Core.Interfaces;
 
 namespace SmrScheduler.Api.Controllers;
 
 [ApiController]
 [Route("api/schedule")]
-public class ScheduleController(AppDbContext db) : ControllerBase
+public class ScheduleController(IScheduleService scheduleService) : ControllerBase
 {
     [HttpGet("today")]
-    public async Task<ActionResult<IEnumerable<object>>> GetTodaySchedule()
+    public async Task<IActionResult> GetTodaySchedule()
     {
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
-
-        var appointments = await db.Appointments
-            .Include(a => a.Customer)
-            .Include(a => a.Slot)
-            .Include(a => a.ServiceType)
-            .Include(a => a.Mechanic).ThenInclude(m => m.Branch)
-            .Include(a => a.Branch)
-            .Where(a => a.Slot.StartUtc >= today && a.Slot.StartUtc < tomorrow)
-            .OrderBy(a => a.Slot.StartUtc)
-            .ToListAsync();
+        var appointments = await scheduleService.GetTodayAppointmentsAsync();
 
         var grouped = appointments
             .GroupBy(a => new { a.MechanicId, a.Mechanic.Name, BranchName = a.Branch.Name })

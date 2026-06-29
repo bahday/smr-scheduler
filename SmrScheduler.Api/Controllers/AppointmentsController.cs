@@ -1,117 +1,55 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using SmrScheduler.Api.DTOs;
-using SmrScheduler.Core.Entities;
 using SmrScheduler.Core.Enums;
-using SmrScheduler.Infrastructure.Data;
+using SmrScheduler.Core.Interfaces;
 
 namespace SmrScheduler.Api.Controllers;
 
 [ApiController]
 [Route("api/appointments")]
-public class AppointmentsController(AppDbContext db) : ControllerBase
+public class AppointmentsController(IAppointmentService appointmentService) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<BookAppointmentResponse>> BookAppointment(
         [FromBody] BookAppointmentRequest request)
     {
-        // Pessimistic double-booking guard: atomic check-and-mark in one statement.
-        // ExecuteUpdate returns the number of rows affected; 0 means the slot was
-        // already taken (or doesn't exist) — no separate read needed.
-        await using var transaction = await db.Database.BeginTransactionAsync();
-
-        var marked = await db.AppointmentSlots
-            .Where(s => s.Id == request.SlotId && s.IsAvailable)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsAvailable, false));
-
-        if (marked == 0)
+        try
         {
-            var exists = await db.AppointmentSlots.AnyAsync(s => s.Id == request.SlotId);
-            return exists
-                ? Conflict(new { error = "This slot has already been booked." })
-                : NotFound(new { error = "Slot not found." });
+            var result = await appointmentService.BookAsync(new BookAppointmentCommand(
+                request.SlotId,
+                request.ServiceTypeId,
+                request.CustomerName,
+                request.CustomerPhone,
+                request.VehicleRegistration,
+                request.Notes));
+
+            var response = new BookAppointmentResponse(
+                result.Appointment.Id,
+                result.Appointment.ReferenceNumber,
+                result.Customer.Name,
+                result.Customer.VehicleRegistration,
+                result.ServiceType.Name,
+                result.Slot.Mechanic.Name,
+                result.Slot.Branch.Name,
+                result.Slot.StartUtc);
+
+            return CreatedAtAction(nameof(GetAppointment), new { id = result.Appointment.Id }, response);
         }
-
-        var slot = await db.AppointmentSlots
-            .Include(s => s.Mechanic)
-            .Include(s => s.Branch)
-            .FirstAsync(s => s.Id == request.SlotId);
-
-        var serviceType = await db.ServiceTypes.FindAsync(request.ServiceTypeId);
-        if (serviceType is null)
-            return NotFound(new { error = "Service type not found." });
-
-        var customer = new Customer
+        catch (KeyNotFoundException ex)
         {
-            Name = request.CustomerName,
-            Phone = request.CustomerPhone,
-            VehicleRegistration = request.VehicleRegistration
-        };
-        db.Customers.Add(customer);
-        await db.SaveChangesAsync();
-
-        // Generate sequential reference number for today
-        var today = DateTime.UtcNow.Date;
-        var dateStr = today.ToString("yyyyMMdd");
-        var todayCount = await db.Appointments
-            .CountAsync(a => a.CreatedUtc >= today && a.CreatedUtc < today.AddDays(1));
-        var refNumber = $"AA-{dateStr}-{(todayCount + 1):D3}";
-
-        var appointment = new Appointment
-        {
-            ReferenceNumber = refNumber,
-            SlotId = slot.Id,
-            CustomerId = customer.Id,
-            ServiceTypeId = serviceType.Id,
-            BranchId = slot.BranchId,
-            MechanicId = slot.MechanicId,
-            Status = AppointmentStatus.Scheduled,
-            CreatedUtc = DateTime.UtcNow
-        };
-        db.Appointments.Add(appointment);
-        await db.SaveChangesAsync();
-
-        // Add customer notes as first work note if provided
-        if (!string.IsNullOrWhiteSpace(request.Notes))
-        {
-            db.WorkNotes.Add(new WorkNote
-            {
-                AppointmentId = appointment.Id,
-                AuthorId = slot.MechanicId,
-                Text = $"Customer notes: {request.Notes}",
-                CreatedUtc = DateTime.UtcNow
-            });
-            await db.SaveChangesAsync();
+            return NotFound(new { error = ex.Message });
         }
-
-        await transaction.CommitAsync();
-
-        return CreatedAtAction(nameof(GetAppointment), new { id = appointment.Id },
-            new BookAppointmentResponse(
-                appointment.Id,
-                appointment.ReferenceNumber,
-                customer.Name,
-                customer.VehicleRegistration,
-                serviceType.Name,
-                slot.Mechanic.Name,
-                slot.Branch.Name,
-                slot.StartUtc));
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("CONFLICT"))
+        {
+            return Conflict(new { error = "This slot has already been booked." });
+        }
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<AppointmentDetailDto>> GetAppointment(int id)
     {
-        var appt = await db.Appointments
-            .Include(a => a.Customer)
-            .Include(a => a.Slot).ThenInclude(s => s.Branch)
-            .Include(a => a.ServiceType)
-            .Include(a => a.Mechanic).ThenInclude(m => m.Branch)
-            .Include(a => a.Branch)
-            .Include(a => a.WorkNotes).ThenInclude(n => n.Author)
-            .FirstOrDefaultAsync(a => a.Id == id);
-
-        if (appt is null)
-            return NotFound();
+        var appt = await appointmentService.GetByIdAsync(id);
+        if (appt is null) return NotFound();
 
         return Ok(new AppointmentDetailDto(
             appt.Id,
@@ -134,49 +72,36 @@ public class AppointmentsController(AppDbContext db) : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Text))
             return BadRequest(new { error = "Note text cannot be empty." });
 
-        var appt = await db.Appointments.FindAsync(id);
-        if (appt is null)
-            return NotFound();
-
-        var note = new WorkNote
+        try
         {
-            AppointmentId = id,
-            AuthorId = appt.MechanicId,
-            Text = request.Text,
-            CreatedUtc = DateTime.UtcNow
-        };
-        db.WorkNotes.Add(note);
-        await db.SaveChangesAsync();
-
-        var mechanic = await db.Mechanics.FindAsync(note.AuthorId);
-        return CreatedAtAction(nameof(GetAppointment), new { id },
-            new WorkNoteDto(note.Id, mechanic!.Name, note.Text, note.CreatedUtc));
+            var note = await appointmentService.AddWorkNoteAsync(id, request.Text);
+            return CreatedAtAction(nameof(GetAppointment), new { id },
+                new WorkNoteDto(note.Id, note.Author.Name, note.Text, note.CreatedUtc));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
     }
 
     [HttpPut("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusRequest request)
     {
         if (!Enum.TryParse<AppointmentStatus>(request.Status, ignoreCase: true, out var newStatus))
-            return BadRequest(new { error = $"Invalid status '{request.Status}'. Valid values: Scheduled, InProgress, Completed, NoShow." });
+            return BadRequest(new { error = $"Invalid status '{request.Status}'. Valid: Scheduled, InProgress, Completed, NoShow." });
 
-        var appt = await db.Appointments.FindAsync(id);
-        if (appt is null)
-            return NotFound();
-
-        // Validate transition
-        var validTransitions = new Dictionary<AppointmentStatus, AppointmentStatus[]>
+        try
         {
-            [AppointmentStatus.Scheduled]  = [AppointmentStatus.InProgress, AppointmentStatus.NoShow],
-            [AppointmentStatus.InProgress] = [AppointmentStatus.Completed],
-            [AppointmentStatus.Completed]  = [],
-            [AppointmentStatus.NoShow]     = []
-        };
-
-        if (!validTransitions[appt.Status].Contains(newStatus))
-            return BadRequest(new { error = $"Cannot transition from {appt.Status} to {newStatus}." });
-
-        appt.Status = newStatus;
-        await db.SaveChangesAsync();
-        return NoContent();
+            await appointmentService.UpdateStatusAsync(id, newStatus);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }
