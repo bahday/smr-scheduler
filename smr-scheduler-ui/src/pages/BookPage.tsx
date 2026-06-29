@@ -94,7 +94,7 @@ export function BookPage() {
   if (step === 'confirmed' && confirmation) {
     return (
       <div className="max-w-lg mx-auto">
-        <div className="card p-8">
+        <div className="card p-5 sm:p-8">
           <div className="w-12 h-12 bg-green-50 border border-green-200 rounded-full flex items-center justify-center mx-auto mb-4">
             <Check size={22} className="text-green-600" strokeWidth={2.5} />
           </div>
@@ -139,7 +139,7 @@ export function BookPage() {
       <h1 className="page-title mb-6">Book an Appointment</h1>
 
       {/* Step indicator */}
-      <div className="card p-4 mb-6">
+      <div className="card p-3 sm:p-4 mb-6">
         <div className="flex items-center">
           {STEPS.map((label, i) => {
             const n = (i + 1) as 1 | 2 | 3;
@@ -170,7 +170,7 @@ export function BookPage() {
 
       {/* ── Step 1 ── */}
       {step === 1 && (
-        <div className="card p-6 space-y-5">
+        <div className="card p-4 sm:p-6 space-y-5">
           <div>
             <label className="form-label">
               <MapPin size={14} className="inline mr-1.5 text-aa-gray-mid" strokeWidth={1.75} />
@@ -202,7 +202,7 @@ export function BookPage() {
 
       {/* ── Step 2 ── */}
       {step === 2 && (
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="section-title">Available Slots</h2>
             <button onClick={() => setStep(1)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
@@ -273,7 +273,7 @@ export function BookPage() {
 
       {/* ── Step 3 ── */}
       {step === 3 && (
-        <div className="card p-6 space-y-4">
+        <div className="card p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="section-title">Customer Details</h2>
             <button onClick={() => setStep(2)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">

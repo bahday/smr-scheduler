@@ -25,19 +25,19 @@ function AppointmentRow({ appt }: { appt: AppointmentSummary }) {
   return (
     <Link
       to={`/appointments/${appt.id}`}
-      className="group flex items-center gap-4 px-5 py-3.5 hover:bg-aa-gray-soft border-b border-aa-border last:border-b-0 transition-colors duration-150"
+      className="group flex items-center gap-2 sm:gap-4 px-3 sm:px-5 py-3 sm:py-3.5 hover:bg-aa-gray-soft border-b border-aa-border last:border-b-0 transition-colors duration-150"
     >
-      <span className="w-14 text-sm font-semibold text-aa-dark tabular-nums shrink-0">
+      <span className="w-12 sm:w-14 text-sm font-semibold text-aa-dark tabular-nums shrink-0">
         {formatTime(appt.startUtc)}
       </span>
       <span className="w-36 text-xs font-mono text-aa-gray-mid shrink-0 hidden md:block">
         {appt.referenceNumber}
       </span>
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <User size={14} className="text-aa-gray-mid shrink-0" strokeWidth={1.75} />
+      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <User size={13} className="text-aa-gray-mid shrink-0 hidden xs:block" strokeWidth={1.75} />
         <span className="font-medium text-aa-dark text-sm truncate">{appt.customerName}</span>
       </div>
-      <div className="flex items-center gap-1.5 w-32 shrink-0 hidden sm:flex">
+      <div className="flex items-center gap-1.5 w-28 shrink-0 hidden sm:flex">
         <Car size={13} className="text-aa-gray-mid shrink-0" strokeWidth={1.75} />
         <span className="text-xs text-aa-gray-mid truncate">{appt.vehicleRegistration}</span>
       </div>
@@ -46,7 +46,7 @@ function AppointmentRow({ appt }: { appt: AppointmentSummary }) {
         <span className="text-xs text-aa-gray-mid truncate">{appt.serviceType}</span>
       </div>
       <StatusBadge status={appt.status} />
-      <ChevronRight size={15} className="text-aa-border group-hover:text-aa-gray-mid transition-colors duration-150 shrink-0 ml-1" strokeWidth={2} />
+      <ChevronRight size={14} className="text-aa-border group-hover:text-aa-gray-mid transition-colors duration-150 shrink-0" strokeWidth={2} />
     </Link>
   );
 }
@@ -71,7 +71,7 @@ function AdminView() {
     <div className="space-y-5">
       {groups.map(g => (
         <div key={g.mechanicId} className="card overflow-hidden">
-          <div className="px-5 py-3.5 bg-aa-gray-soft border-b border-aa-border flex items-center gap-3">
+          <div className="px-3 sm:px-5 py-3 sm:py-3.5 bg-aa-gray-soft border-b border-aa-border flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-aa-yellow flex items-center justify-center text-aa-dark font-bold text-xs shrink-0">
               {g.mechanicName.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
