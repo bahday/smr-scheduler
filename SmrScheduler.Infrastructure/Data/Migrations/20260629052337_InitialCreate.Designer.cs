@@ -12,7 +12,7 @@ using SmrScheduler.Infrastructure.Data;
 namespace SmrScheduler.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260629051201_InitialCreate")]
+    [Migration("20260629052337_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
