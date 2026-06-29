@@ -3,8 +3,17 @@ using SmrScheduler.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (connStr.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase)
+        || connStr.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+        options.UseSqlite(connStr);
+    else
+        options.UseSqlServer(connStr);
+});
 
 builder.Services.AddCors(options =>
 {
